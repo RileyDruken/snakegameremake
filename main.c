@@ -1,69 +1,92 @@
 #include <curses.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
+#define HEIGHT 20
+#define WIDTH 20
 
-int height = 20, width = 20, score, fruitx, fruity, x, y, gamestate, direction,
-    MOVEMENT_SPEED;
+struct position {
+  int x;
+  int y;
+};
+
+struct position tail[HEIGHT * WIDTH];
+
+int x, y, gamestate, score, fruitx, fruity, direction, taillong;
 
 void fruit() {
-  fruitx = rand() % width;
-  fruity = rand() % height;
+  fruitx = rand() % WIDTH;
+  fruity = rand() % HEIGHT;
   while (fruitx == 0 || fruity == 0) {
-    fruitx = rand() % width;
-    fruity = rand() % height;
+    fruitx = rand() % WIDTH;
+    fruity = rand() % HEIGHT;
   }
 }
+
 void setup() {
-  x = width / 2;
-  y = height / 2;
-  direction = KEY_UP;
-  MOVEMENT_SPEED = 150000;
+  srand(time(NULL));
   initscr();
   raw();
   keypad(stdscr, TRUE);
   refresh();
   nodelay(stdscr, TRUE);
   fruit();
-}
-void draw() {
+  direction = KEY_UP;
   int i;
-  int j;
-  clear();
-  for (i = 0; i <= height; i++) {
-    for (j = 0; j <= width; j++) {
-      if (j == x && i == y) {
-        printw("@");
-      } else if (j == fruitx && i == fruity) {
-        printw("&");
-      } else {
-        if (i == 0 || i == height) {
-          printw("*");
-        } else if (j == 0 || j == width) {
-          printw("*");
-        } else {
-          printw(" ");
-        }
+  for (i = 0; i < WIDTH * HEIGHT; i++) {
+    tail[i].x = -1;
+    tail[i].y = -1;
+  }
+  score = 6;
+  x = WIDTH / 2;
+  y = HEIGHT / 2;
+}
+
+void draw() {
+  erase(); // Clear the screen
+  for (int k = 0; k < taillong; k++) {
+    mvprintw(tail[k].y, tail[k].x, "@");
+  }
+
+  mvprintw(y, x, "@");
+
+  mvprintw(fruity, fruitx, "&");
+
+  for (int i = 0; i < HEIGHT + 1; i++) {
+    for (int j = 0; j < WIDTH + 1; j++) {
+      if (i == 0 || i == HEIGHT || j == 0 || j == WIDTH) {
+        mvprintw(i, j, "#");
       }
     }
-    printw("\n");
   }
+
+  mvprintw(HEIGHT + 1, 0, "score: %d", score);
+
+  refresh();
 }
 
 void game() {
-  if (x == 0 || x == width) {
-    gamestate = 1;
-  } else if (x == width || x == 0 || y == height || y == 0) {
-
-    gamestate = 1;
-  }
   if (x == fruitx && y == fruity) {
-    score++;
     fruit();
+    score++;
+    taillong++;
+  }
+  for (int j = 1; j < taillong; j++) {
+    if (tail[j].x == x && tail[j].y == y) {
+      gamestate = 1;
+    }
+  }
+
+  for (int i = taillong - 1; i > 0; i--) {
+    tail[i] = tail[i - 1];
+  }
+  tail[0].x = x;
+  tail[0].y = y;
+
+  if (x == 0 || x == WIDTH || y == 0 || y == HEIGHT) {
+    gamestate = 1;
   }
 }
-
 void input(int direction) {
   switch (direction) {
   case KEY_UP:
@@ -83,15 +106,27 @@ void input(int direction) {
 
 int main(void) {
   setup();
+
+  int ch;
   while (!gamestate) {
-    draw();
-    int ch = getch();
-    input(direction);
-    game();
+    ch = getch();
     if (ch != ERR) {
+
       direction = ch;
     }
-    usleep(MOVEMENT_SPEED);
+    input(direction);
+
+    draw();
+    game();
+    usleep(100000);
   }
+  if (gamestate) {
+    mvprintw(HEIGHT + 6, 0, "Press enter to exit");
+    refresh();
+
+    while ((ch = getch()) != '\n' && ch != '\r')
+      ;
+  }
+  endwin();
   return 0;
 }
